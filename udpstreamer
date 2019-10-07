@@ -4,20 +4,25 @@ DIR=./opencaster-3.2.2/tools
 TMP=/tmp
 LOOP=$DIR/tsloop/tsloop
 UDPSEND=$DIR/tsudpsend/tsudpsend
-BITRATE=${1:-2049952}
+BITRATE=${2:-2049952}
 FILE=./stream.m2t
-
-NUM=5
+NUM=${1:-5}
 
 chmod +x $LOOP
 chmod +x $UDPSEND
 
 for (( i=1; i<=$NUM; i++ ))
 do
-    echo "File $i"
     FIFO=$TMP/fifo$i.ts
-    rm $FIFO # remove previously created file, if any
-    mkfifo $FIFO
-    $LOOP $FILE > $FIFO &
-    $UDPSEND $FIFO "224.1.2.$i" 1234 $BITRATE &
+    ADDR="224.1.2.$i"
+    PORT=1234
+    if [ ! -p $FIFO ]; then
+        mkfifo $FIFO
+    fi
+    (($LOOP $FILE > $FIFO) &> /dev/null) &
+    ($UDPSEND $FIFO $ADDR $PORT $BITRATE &> /dev/null) &
+    echo "Launched stream ${ADDR}:${PORT} at ${BITRATE} bps"
 done
+
+trap 'trap - SIGTERM && kill 0' SIGINT SIGTERM EXIT
+wait
